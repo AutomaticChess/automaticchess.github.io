@@ -1,0 +1,324 @@
+:root {
+    --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --primary-color: #00d2ff;
+    --secondary-color: #3a7bd5;
+    --accent-color: #ff0099;
+    --text-color: #ffffff;
+    --text-muted: rgba(255, 255, 255, 0.6);
+    --board-light: rgba(255, 255, 255, 0.15);
+    --board-dark: rgba(0, 0, 0, 0.25);
+    --highlight-move: rgba(0, 210, 255, 0.5);
+    --highlight-check: rgba(255, 0, 85, 0.6);
+    --piece-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg-gradient);
+    color: var(--text-color);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 600px;
+    padding: 2rem;
+    backdrop-filter: blur(10px);
+}
+
+header {
+    text-align: center;
+}
+
+.title {
+    font-size: 3rem;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -1px;
+    background: linear-gradient(to right, #fff, #aaa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.highlight {
+    color: var(--primary-color);
+    -webkit-text-fill-color: var(--primary-color);
+}
+
+.subtitle {
+    margin: 0.5rem 0 0;
+    color: var(--text-muted);
+    font-weight: 300;
+}
+
+.game-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    background: var(--glass-bg);
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.player-card {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    opacity: 0.5;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.player-card.active {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.player-card.active .avatar {
+    box-shadow: 0 0 15px var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid transparent;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 700;
+}
+
+.info {
+    display: flex;
+    flex-direction: column;
+}
+
+.name {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.eval {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.status-display {
+    font-weight: 500;
+    color: var(--primary-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9rem;
+}
+
+.board-wrapper {
+    position: relative;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: 80vmin;
+    height: 80vmin;
+    max-width: 500px;
+    max-height: 500px;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.square {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 3.5rem;
+    /* Adjust based on board size */
+    cursor: default;
+    user-select: none;
+    position: relative;
+}
+
+.square.light {
+    background-color: var(--board-light);
+}
+
+.square.dark {
+    background-color: var(--board-dark);
+}
+
+.square.highlight {
+    background-color: var(--highlight-move) !important;
+}
+
+.square.check {
+    background-color: var(--highlight-check) !important;
+    box-shadow: inset 0 0 20px rgba(255, 0, 0, 0.5);
+}
+
+.piece {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+    z-index: 2;
+}
+
+.piece.white {
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+.piece.black {
+    color: #1a1a1a;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+    /* White glow for visibility on dark */
+    /* Actually, on dark squares black pieces are hard to see. Let's make them dark grey with a light border/glow */
+    color: #000;
+    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.5);
+}
+
+/* Better piece styling for dark mode */
+.piece.black {
+    color: #222;
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.3));
+}
+
+.piece.white {
+    color: #f0f0f0;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.6));
+}
+
+.move-history {
+    width: 100%;
+    background: var(--glass-bg);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    padding: 1rem;
+    max-height: 150px;
+    display: flex;
+    flex-direction: column;
+}
+
+.history-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+}
+
+.history-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: var(--primary-color);
+}
+
+.history-move {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.controls {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.8rem;
+}
+
+.btn.primary {
+    background: var(--primary-color);
+    color: #000;
+    box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
+}
+
+.btn.primary:hover {
+    background: #33d9ff;
+    box-shadow: 0 0 25px rgba(0, 210, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+.btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+footer {
+    margin-top: auto;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+@media (max-width: 600px) {
+    .title {
+        font-size: 2rem;
+    }
+
+    .board {
+        width: 90vmin;
+        height: 90vmin;
+    }
+
+    .square {
+        font-size: 2.5rem;
+    }
+}
