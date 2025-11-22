@@ -8,17 +8,25 @@ const blackPlayerEl = document.querySelector('.black-player');
 const historyListEl = document.getElementById('history-list');
 const resetBtn = document.getElementById('reset-btn');
 const speedBtn = document.getElementById('speed-btn');
+const soundBtn = document.getElementById('sound-btn');
+const whiteCapturedEl = document.getElementById('white-captured');
+const blackCapturedEl = document.getElementById('black-captured');
+const evalBarFillEl = document.getElementById('eval-bar-fill');
 
 let moveTimer = null;
 let moveDelay = 800; // ms
 let isGameActive = false;
 let autoRestartTimer = null;
+let isSoundOn = true;
+
+// Audio Context
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioContext();
 
 const PIECE_VALUES = {
     p: 1, n: 3, b: 3, r: 5, q: 9, k: 0
 };
 
-// Unicode pieces
 const PIECE_SYMBOLS = {
     w: { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' },
     b: { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
@@ -29,9 +37,60 @@ function initGame() {
     isGameActive = true;
     clearTimeout(autoRestartTimer);
     historyListEl.innerHTML = '';
+    whiteCapturedEl.innerHTML = '';
+    blackCapturedEl.innerHTML = '';
+    evalBarFillEl.style.width = '50%';
     renderBoard();
     updateStatus();
     startAutoPlay();
+}
+
+function playSound(type) {
+    if (!isSoundOn) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+
+    if (type === 'move') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'capture') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+        gainNode.gain.setValueAtTime(0.5, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+    } else if (type === 'check') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(400, now + 0.2);
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    } else if (type === 'gameover') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+        osc.frequency.linearRampToValueAtTime(600, now + 0.4);
+        gainNode.gain.setValueAtTime(0.5, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 1.0);
+        osc.start(now);
+        osc.stop(now + 1.0);
+    }
 }
 
 function renderBoard() {
@@ -40,19 +99,13 @@ function renderBoard() {
 
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
-            const squareIndex = row * 8 + col;
             const squareEl = document.createElement('div');
             squareEl.classList.add('square');
-
-            // Color
             const isLight = (row + col) % 2 === 0;
             squareEl.classList.add(isLight ? 'light' : 'dark');
-
-            // Set ID for easy access (e.g., "e4")
             const squareName = String.fromCharCode(97 + col) + (8 - row);
             squareEl.dataset.square = squareName;
 
-            // Piece
             const piece = board[row][col];
             if (piece) {
                 const pieceEl = document.createElement('div');
@@ -62,7 +115,6 @@ function renderBoard() {
                 squareEl.appendChild(pieceEl);
             }
 
-            // Highlight last move
             const history = game.history({ verbose: true });
             if (history.length > 0) {
                 const lastMove = history[history.length - 1];
@@ -71,7 +123,6 @@ function renderBoard() {
                 }
             }
 
-            // Highlight check
             if (game.in_check()) {
                 const turn = game.turn();
                 if (piece && piece.type === 'k' && piece.color === turn) {
@@ -100,6 +151,7 @@ function updateStatus() {
     if (game.game_over()) {
         isGameActive = false;
         clearTimeout(moveTimer);
+        playSound('gameover');
 
         let resultText = '';
         if (game.in_checkmate()) {
@@ -112,24 +164,72 @@ function updateStatus() {
             resultText = 'Game Over';
         }
         statusEl.innerText = resultText;
-
-        // Auto restart after 3 seconds
         statusEl.innerText += " - Restarting in 3s...";
         autoRestartTimer = setTimeout(initGame, 3000);
         return;
     }
 
-    // Update Eval (Simple material count)
     const eval = calculateMaterial();
     whiteEvalEl.innerText = eval.w.toFixed(1);
     blackEvalEl.innerText = eval.b.toFixed(1);
+    
+    // Update Eval Bar
+    const diff = eval.w - eval.b;
+    // Clamp between -10 and 10 for visual bar
+    const clampedDiff = Math.max(-10, Math.min(10, diff));
+    // Map -10..10 to 0..100% (0 = 50%, 10 = 100%, -10 = 0%)
+    const percentage = 50 + (clampedDiff * 5); 
+    evalBarFillEl.style.width = `${percentage}%`;
+
+    updateCapturedPieces();
+}
+
+function updateCapturedPieces() {
+    // Calculate captured pieces by comparing current board with initial set
+    const initialCounts = { p: 8, n: 2, b: 2, r: 2, q: 1, k: 1 };
+    const currentCounts = {
+        w: { ...initialCounts },
+        b: { ...initialCounts }
+    };
+
+    const board = game.board();
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const p = board[r][c];
+            if (p) {
+                currentCounts[p.color][p.type]--;
+            }
+        }
+    }
+
+    // Render captured pieces (what's missing from board)
+    // White captured pieces are Black pieces that are missing
+    renderCaptured(whiteCapturedEl, currentCounts.b, 'black');
+    // Black captured pieces are White pieces that are missing
+    renderCaptured(blackCapturedEl, currentCounts.w, 'white');
+}
+
+function renderCaptured(container, counts, colorClass) {
+    container.innerHTML = '';
+    const pieceOrder = ['q', 'r', 'b', 'n', 'p']; // High value first
+    
+    pieceOrder.forEach(type => {
+        const count = counts[type];
+        for (let i = 0; i < count; i++) {
+            const span = document.createElement('span');
+            span.classList.add('captured-piece', colorClass);
+            // Use the symbol of the captured piece's color
+            // If white captured a black pawn, we show a black pawn symbol
+            const symbolColor = colorClass === 'white' ? 'w' : 'b';
+            span.innerText = PIECE_SYMBOLS[symbolColor][type];
+            container.appendChild(span);
+        }
+    });
 }
 
 function updateHistory(move) {
     const moveSpan = document.createElement('span');
     moveSpan.classList.add('history-move');
-    // Format: "1. e4" or just "e4"
-    // Let's do just the SAN
     moveSpan.innerText = move.san;
     historyListEl.appendChild(moveSpan);
     historyListEl.scrollTop = historyListEl.scrollHeight;
@@ -168,18 +268,21 @@ function makeMove() {
         const moves = game.moves({ verbose: true });
         if (moves.length === 0) return;
 
-        // AI Logic: Pick best move
         const move = getBestMove(moves);
-
         game.move(move);
-        updateHistory(move); // Use the move object which has SAN from chess.js if we used .move(string), but here we used object. 
-        // Wait, game.move(object) returns the move object with SAN.
-        // Actually game.move(move) returns the move object.
+        
+        // Sound effects
+        if (game.in_check()) {
+            playSound('check');
+        } else if (move.captured) {
+            playSound('capture');
+        } else {
+            playSound('move');
+        }
 
+        updateHistory(move);
         renderBoard();
         updateStatus();
-
-        // Continue loop
         makeMove();
     }, moveDelay);
 }
@@ -190,25 +293,17 @@ function getBestMove(moves) {
 
     for (const move of moves) {
         let score = 0;
-
-        // Capture value
         if (move.captured) {
             score += PIECE_VALUES[move.captured] * 10;
             score -= PIECE_VALUES[move.piece];
         }
-
-        // Promotion
         if (move.promotion) {
             score += PIECE_VALUES[move.promotion] * 5;
         }
-
-        // Center control bias
         const centerSquares = ['e4', 'd4', 'e5', 'd5'];
         if (centerSquares.includes(move.to)) {
             score += 0.5;
         }
-
-        // Random noise to make it interesting
         score += Math.random() * 0.5;
 
         if (score > bestScore) {
@@ -218,7 +313,6 @@ function getBestMove(moves) {
             bestMoves.push(move);
         }
     }
-
     return bestMoves[Math.floor(Math.random() * bestMoves.length)];
 }
 
@@ -241,5 +335,12 @@ speedBtn.addEventListener('click', () => {
     }
 });
 
-// Start
+soundBtn.addEventListener('click', () => {
+    isSoundOn = !isSoundOn;
+    soundBtn.innerText = `Sound: ${isSoundOn ? 'On' : 'Off'}`;
+    if (isSoundOn && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+});
+
 initGame();

@@ -29,16 +29,23 @@
                     <div class="info">
                         <span class="name">White AI</span>
                         <span class="eval" id="white-eval">0.0</span>
+                        <div class="captured-pieces" id="white-captured"></div>
                     </div>
                 </div>
 
-                <div class="status-display" id="status">Initializing...</div>
+                <div class="status-wrapper">
+                    <div class="status-display" id="status">Initializing...</div>
+                    <div class="eval-bar-container">
+                        <div class="eval-bar-fill" id="eval-bar-fill"></div>
+                    </div>
+                </div>
 
                 <div class="player-card black-player">
                     <div class="avatar">B</div>
                     <div class="info">
                         <span class="name">Black AI</span>
                         <span class="eval" id="black-eval">0.0</span>
+                        <div class="captured-pieces" id="black-captured"></div>
                     </div>
                 </div>
             </div>
@@ -57,6 +64,7 @@
             <div class="controls">
                 <button id="reset-btn" class="btn primary">New Game</button>
                 <button id="speed-btn" class="btn secondary">Speed: 1x</button>
+                <button id="sound-btn" class="btn secondary">Sound: On</button>
             </div>
         </main>
 
