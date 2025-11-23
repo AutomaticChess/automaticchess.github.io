@@ -218,6 +218,9 @@ header {
     cursor: default;
     user-select: none;
     position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: visible;
 }
 
 .square.light {
@@ -238,10 +241,15 @@ header {
 }
 
 .piece {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     cursor: pointer;
     transition: transform 0.2s ease;
     filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
     z-index: 2;
+    pointer-events: none;
 }
 
 .piece.white {
