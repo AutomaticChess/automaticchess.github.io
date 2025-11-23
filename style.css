@@ -188,26 +188,34 @@ header {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.board {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(8, 1fr);
-    width: 80vmin;
-    height: 80vmin;
-    max-width: 500px;
-    max-height: 500px;
-    border-radius: 4px;
-    overflow: hidden;
-    position: relative;
 }
 
-.square {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 3.5rem;
-    cursor: default;
-    user-select: none;
+.square.check {
+    background-color: var(--highlight-check) !important;
+    box-shadow: inset 0 0 20px rgba(255, 0, 0, 0.5);
+}
+
+.piece {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+    z-index: 2;
+}
+
+.piece.white {
+    color: #f0f0f0;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.6));
+}
+
+.piece.black {
+    color: #222;
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.3));
+}
+
+.move-history {
+    width: 100%;
+    background: var(--glass-bg);
+    border-radius: 12px;
     border: 1px solid var(--glass-border);
     padding: 1rem;
     max-height: 150px;
