@@ -13,11 +13,15 @@ const whiteCapturedEl = document.getElementById('white-captured');
 const blackCapturedEl = document.getElementById('black-captured');
 const evalBarFillEl = document.getElementById('eval-bar-fill');
 
+const openingEl = document.getElementById('opening');
+
 let moveTimer = null;
 let moveDelay = 800; // ms
 let isGameActive = false;
 let autoRestartTimer = null;
 let isSoundOn = true;
+let whitePersonality = 'balanced';
+let blackPersonality = 'balanced';
 
 // Audio Context
 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -32,6 +36,41 @@ const PIECE_SYMBOLS = {
     b: { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
 };
 
+const PERSONALITIES = {
+    aggressive: {
+        captureWeight: 15,
+        checkWeight: 3,
+        centerWeight: 0.5,
+        promotionWeight: 8,
+        name: 'Aggressive'
+    },
+    positional: {
+        captureWeight: 10,
+        checkWeight: 0.5,
+        centerWeight: 1.5,
+        promotionWeight: 5,
+        name: 'Positional'
+    },
+    balanced: {
+        captureWeight: 10,
+        checkWeight: 1,
+        centerWeight: 1,
+        promotionWeight: 5,
+        name: 'Balanced'
+    }
+};
+
+const OPENINGS = {
+    'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3': "King's Pawn Opening",
+    'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq d3': "Queen's Pawn Opening",
+    'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6': "Open Game",
+    'rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6': "Sicilian Defense",
+    'rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq d6': "Queen's Gambit Game",
+    'rnbqkbnr/pppp1ppp/4p3/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -': "French Defense",
+    'rnbqkbnr/pp1ppppp/2p5/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -': "Caro-Kann Defense",
+    'rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq -': "Reti Opening"
+};
+
 function initGame() {
     game.reset();
     isGameActive = true;
@@ -40,6 +79,15 @@ function initGame() {
     whiteCapturedEl.innerHTML = '';
     blackCapturedEl.innerHTML = '';
     evalBarFillEl.style.width = '50%';
+    openingEl.innerText = 'Starting Position';
+
+    // Randomize personalities
+    const types = Object.keys(PERSONALITIES);
+    whitePersonality = types[Math.floor(Math.random() * types.length)];
+    blackPersonality = types[Math.floor(Math.random() * types.length)];
+
+    console.log(`White: ${whitePersonality}, Black: ${blackPersonality}`);
+
     renderBoard();
     updateStatus();
     startAutoPlay();
@@ -137,15 +185,32 @@ function renderBoard() {
 
 function updateStatus() {
     const turn = game.turn();
+    const pName = turn === 'w' ? PERSONALITIES[whitePersonality].name : PERSONALITIES[blackPersonality].name;
 
     if (turn === 'w') {
         whitePlayerEl.classList.add('active');
         blackPlayerEl.classList.remove('active');
-        statusEl.innerText = "White's Turn";
+        statusEl.innerText = `White's Turn (${pName})`;
     } else {
         whitePlayerEl.classList.remove('active');
         blackPlayerEl.classList.add('active');
-        statusEl.innerText = "Black's Turn";
+        statusEl.innerText = `Black's Turn (${pName})`;
+    }
+
+    // Check for opening
+    const fen = game.fen().split(' ').slice(0, 4).join(' '); // Simplified FEN for matching
+    // We need to match FENs approximately or use move history string
+    // For simplicity, let's use a basic check on the first few moves
+    if (game.history().length <= 10) {
+        // Try to match exact FENs from our dictionary
+        // Note: The dictionary keys above are full FENs, but we might need to be careful with move numbers
+        // Let's try to match based on FEN structure excluding move clocks
+        for (const [key, name] of Object.entries(OPENINGS)) {
+            if (game.fen().includes(key.split(' ').slice(0, 3).join(' '))) {
+                openingEl.innerText = name;
+                break;
+            }
+        }
     }
 
     if (game.game_over()) {
@@ -172,13 +237,13 @@ function updateStatus() {
     const eval = calculateMaterial();
     whiteEvalEl.innerText = eval.w.toFixed(1);
     blackEvalEl.innerText = eval.b.toFixed(1);
-    
+
     // Update Eval Bar
     const diff = eval.w - eval.b;
     // Clamp between -10 and 10 for visual bar
     const clampedDiff = Math.max(-10, Math.min(10, diff));
     // Map -10..10 to 0..100% (0 = 50%, 10 = 100%, -10 = 0%)
-    const percentage = 50 + (clampedDiff * 5); 
+    const percentage = 50 + (clampedDiff * 5);
     evalBarFillEl.style.width = `${percentage}%`;
 
     updateCapturedPieces();
@@ -212,7 +277,7 @@ function updateCapturedPieces() {
 function renderCaptured(container, counts, colorClass) {
     container.innerHTML = '';
     const pieceOrder = ['q', 'r', 'b', 'n', 'p']; // High value first
-    
+
     pieceOrder.forEach(type => {
         const count = counts[type];
         for (let i = 0; i < count; i++) {
@@ -270,7 +335,7 @@ function makeMove() {
 
         const move = getBestMove(moves);
         game.move(move);
-        
+
         // Sound effects
         if (game.in_check()) {
             playSound('check');
@@ -291,20 +356,39 @@ function getBestMove(moves) {
     let bestScore = -Infinity;
     let bestMoves = [];
 
+    const turn = game.turn();
+    const personality = turn === 'w' ? PERSONALITIES[whitePersonality] : PERSONALITIES[blackPersonality];
+
     for (const move of moves) {
         let score = 0;
+
+        // Capture weight
         if (move.captured) {
-            score += PIECE_VALUES[move.captured] * 10;
-            score -= PIECE_VALUES[move.piece];
+            score += PIECE_VALUES[move.captured] * personality.captureWeight;
+            score -= PIECE_VALUES[move.piece]; // Risk of losing piece (simple exchange eval)
         }
+
+        // Promotion weight
         if (move.promotion) {
-            score += PIECE_VALUES[move.promotion] * 5;
+            score += PIECE_VALUES[move.promotion] * personality.promotionWeight;
         }
+
+        // Center control weight
         const centerSquares = ['e4', 'd4', 'e5', 'd5'];
         if (centerSquares.includes(move.to)) {
-            score += 0.5;
+            score += personality.centerWeight;
         }
-        score += Math.random() * 0.5;
+
+        // Check weight
+        // We need to simulate the move to see if it gives check, but chess.js moves() with verbose:true doesn't strictly tell us if it GIVES check, only if the move is legal.
+        // Actually, checking if it gives check requires making the move. 
+        // For simplicity/performance, we might skip this or do a quick peek.
+        // Let's skip complex check detection for now to keep it fast, or rely on simple heuristics.
+        if (move.san.includes('+')) {
+            score += personality.checkWeight;
+        }
+
+        score += Math.random() * 0.5; // Randomness
 
         if (score > bestScore) {
             bestScore = score;
